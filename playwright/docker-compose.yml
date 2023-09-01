@@ -1,7 +1,8 @@
 services:
   VaultwardenPrebuild:
-    container_name: playwright_vaultwarden_prebuilt
-    image: playwright_vaultwarden_prebuilt
+    profiles: ["playwright", "vaultwarden"]
+    container_name: playwright_oidc_vaultwarden_prebuilt
+    image: playwright_oidc_vaultwarden_prebuilt
     build:
       context: ..
       dockerfile: Dockerfile
@@ -9,8 +10,9 @@ services:
     restart: "no"
 
   Vaultwarden:
-    container_name: playwright_vaultwarden-${ENV:-dev}
-    image: playwright_vaultwarden-${ENV:-dev}
+    profiles: ["playwright", "vaultwarden"]
+    container_name: playwright_oidc_vaultwarden-${ENV:-dev}
+    image: playwright_oidc_vaultwarden-${ENV:-dev}
     network_mode: "host"
     build:
       context: compose/vaultwarden
@@ -18,31 +20,38 @@ services:
       args:
         REPO_URL: ${PW_WV_REPO_URL:-}
         COMMIT_HASH: ${PW_WV_COMMIT_HASH:-}
-    env_file: ${ENV}.env
+    env_file: ${DC_ENV_FILE:-.env}
     environment:
       - DATABASE_URL
       - I_REALLY_WANT_VOLATILE_STORAGE
       - SMTP_HOST
       - SMTP_FROM
       - SMTP_DEBUG
+      - SSO_FRONTEND
+      - SSO_ENABLED
+      - SSO_ONLY
     restart: "no"
+    depends_on:
+      - VaultwardenPrebuild
 
   Playwright:
-    container_name: playwright_playwright
-    image: playwright_playwright
+    profiles: ["playwright"]
+    container_name: playwright_oidc_playwright
+    image: playwright_oidc_playwright
     network_mode: "host"
     build:
       context: .
       dockerfile: compose/playwright/Dockerfile
     environment:
-      - PW_WV_REPO_URL=${PW_WV_REPO_URL:-}
-      - PW_WV_COMMIT_HASH=${PW_WV_COMMIT_HASH:-}
+      - PW_WV_REPO_URL
+      - PW_WV_COMMIT_HASH
     restart: "no"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ..:/project
 
   Mariadb:
+    profiles: ["playwright"]
     container_name: playwright_mariadb
     image: mariadb:11.2.4
     env_file: test.env
@@ -54,6 +63,7 @@ services:
       - ${MARIADB_PORT}:3306
 
   Mysql:
+    profiles: ["playwright"]
     container_name: playwright_mysql
     image: mysql:8.4.1
     env_file: test.env
@@ -65,6 +75,7 @@ services:
       - ${MYSQL_PORT}:3306
 
   Postgres:
+    profiles: ["playwright"]
     container_name: playwright_postgres
     image: postgres:16.3
     env_file: test.env
@@ -74,3 +85,38 @@ services:
       interval: 30s
     ports:
       - ${POSTGRES_PORT}:5432
+
+  Maildev:
+    profiles: ["vaultwarden"]
+    container_name: maildev
+    image: timshel/maildev
+    network_mode: "host"
+    command:
+      - start-dev
+    env_file: ${DC_ENV_FILE:-.env}
+
+  Keycloak:
+    profiles: ["keycloak", "vaultwarden"]
+    container_name: keycloak-${ENV:-dev}
+    image: quay.io/keycloak/keycloak:25.0.4
+    network_mode: "host"
+    command:
+      - start-dev
+    env_file: ${DC_ENV_FILE:-.env}
+
+  KeycloakSetup:
+    profiles: ["keycloak", "vaultwarden"]
+    container_name: keycloakSetup-${ENV:-dev}
+    image: keycloak_setup-${ENV:-dev}
+    build:
+      context: compose/keycloak
+      dockerfile: Dockerfile
+      args:
+        KEYCLOAK_VERSION: 25.0.4
+        JAVA_URL: https://download.java.net/java/GA/jdk21.0.2/f2283984656d49d69e91c558476027ac/13/GPL/openjdk-21.0.2_linux-x64_bin.tar.gz
+        JAVA_VERSION: 21.0.2
+    network_mode: "host"
+    depends_on:
+      - Keycloak
+    restart: "no"
+    env_file: ${DC_ENV_FILE:-.env}
