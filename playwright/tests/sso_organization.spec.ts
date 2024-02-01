@@ -2,7 +2,7 @@ import { test, expect, type TestInfo } from '@playwright/test';
 import { MailDev } from 'maildev';
 
 import * as utils from "../global-utils";
-import { createAccount, logUser } from './setups/sso';
+import { logNewUser, logUser } from './setups/sso';
 
 let users = utils.loadEnv();
 
@@ -28,17 +28,17 @@ test.beforeAll('Setup', async ({ browser }, testInfo: TestInfo) => {
     user3Mails = mailserver.iterator(users.user3.email);
 });
 
-test.afterAll('Teardown', async ({}, testInfo: TestInfo) => {
-    utils.stopVaultwarden(testInfo);
+test.afterAll('Teardown', async ({}) => {
+    utils.stopVaultwarden();
     utils.closeMails(mailserver, [user1Mails, user2Mails, user3Mails]);
 });
 
 test('Create user2', async ({ page }) => {
-    await createAccount(test, page, users.user2, user2Mails);
+    await logNewUser(test, page, users.user2, { emails: user2Mails });
 });
 
 test('Invite users', async ({ page }) => {
-    await createAccount(test, page, users.user1, user1Mails);
+    await logNewUser(test, page, users.user1, { emails: user1Mails });
 
     await test.step('Create Org', async () => {
         await page.getByRole('link', { name: 'New organization' }).click();
