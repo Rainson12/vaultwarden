@@ -105,6 +105,28 @@ If you want to run a testing instance of Keycloak the Playwright [docker-compose
 \
 More details on how to use it in [README.md](playwright/README.md#openid-connect-test-setup).
 
+
+## Auth0
+
+Not working due to the following issue https://github.com/ramosbugs/openidconnect-rs/issues/23 (they appear not to follow the spec).
+A feature flag is available to bypass the issue but since it's a compile time feature you will have to patch `Vaultwarden` with something like:
+
+```patch
+diff --git a/Cargo.toml b/Cargo.toml
+index 0524a7be..9999e852 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -150,7 +150,7 @@ paste = "1.0.15"
+ governor = "0.6.3"
+
+ # OIDC for SSO
+-openidconnect = "3.5.0"
++openidconnect = { version = "3.5.0", features = ["accept-rfc3339-timestamps"] }
+ mini-moka = "0.10.2"
+```
+
+There is no plan at the moment to either always activate the feature nor make a specific distribution for Auth0.
+
 ## Authelia
 
 To obtain a `refresh_token` to be able to extend session you'll need to add the `offline_access` scope.
@@ -132,8 +154,17 @@ Server configuration should look like:
 
 ## Casdoor
 
-Not working at the moment. The `id_token` always contains a malformed address claim.
-An [issue](https://github.com/casdoor/casdoor/issues/3001) was opened but the fix was reverted and the issue not reopened.
+Since version [v1.639.0](https://github.com/casdoor/casdoor/releases/tag/v1.639.0) should work (Tested with version [v1.686.0](https://github.com/casdoor/casdoor/releases/tag/v1.686.0)).
+When creating the application you will need to select the `Token format -> JWT-Standard`.
+
+Then configure your server with:
+
+- `SSO_AUTHORITY=https://${provider_host}`
+- `SSO_CLIENT_ID`
+- `SSO_CLIENT_SECRET`
+- `SSO_PKCE=true`
+
+During login if you encounter the error `missing field access_token` it probably means that the `client_id` or `client_secret` is invalid (Cf https://github.com/casdoor/casdoor/issues/3162).
 
 ## GitLab
 
